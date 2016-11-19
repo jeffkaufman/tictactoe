@@ -57,9 +57,9 @@ def legal_moves(board):
         moves.append((row_n, col_n))
   return moves
 
-def update(board, row_n, col_n):
+def update(board, row_n, col_n, val='o'):
   assert board[row_n][col_n] == ' '
-  board[row_n][col_n] = 'o'
+  board[row_n][col_n] = val
 
 def make_random_move(board):
   row_n, col_n = random.choice(legal_moves(board))
@@ -96,10 +96,93 @@ def make_book_move(board):
 
   return False
 
+def clone_board(board):
+  return [row[:] for row in board]
+
+# We can compute these once on startup, since they never change.
+sequences = [] # start_row, start_col, row_increment, col_increment
+for i in range(3):
+  sequences.append((i, 0, 0, 1))  # row i
+  sequences.append((0, i, 1, 0))  # column i
+sequences.append((0, 0, 1 ,1))    # top-left to bottom-right diagonal
+sequences.append((0, 2, 1, -1))   # top-right to bottom-left diagonal
+
+def game_status(board):
+  # returns:
+  #  'x', 'o': that player won
+  #  'd':      draw
+  #  None:     game not over
+
+  for start_row, start_col, row_increment, col_increment in sequences:
+    row_n = start_row
+    col_n = start_col
+
+    potential_winner = board[start_row][start_col]
+
+    for j in range(3):
+      if board[start_row][start_col] != board[row_n][col_n]:
+        potential_winner = ' ' # mixed path: no one has won it
+
+      row_n += row_increment
+      col_n += col_increment
+
+    if potential_winner != ' ':
+      # There was only one value along the path, and it wasn't ' '.
+      return potential_winner
+
+  if ' ' in serialize_board(board):
+    # There are potential moves remaining, game not over.
+    return None
+  else:
+    # Game over, no one won, draw.
+    return 'd'
+
+def other_player(player):
+  return {'x': 'o',
+          'o': 'x'}[player]
+
+def search_and_move(board, player='o'):
+  # Consider all possible game trees from here, trying to find one
+  # where player can win.  If we can't win, then force a draw.
+  categorized_moves = {}
+
+  for row_n, col_n in legal_moves(board):
+    # You could do this all in-place, making changes and then undoing
+    # them, but that seems like a hack to me.  It would be faster,
+    # though, because copying is slow.
+    board_copy = clone_board(board)
+    update(board_copy, row_n, col_n, player)
+    winner = game_status(board_copy)
+    if winner == None:
+      # Game not over yet.
+      winner = search_and_move(board_copy, other_player(player))
+      assert winner
+
+    # We don't need multiple moves in each cateogory, so we can just
+    # overwrite.
+    categorized_moves[winner] = row_n, col_n
+
+    # If we found a winning move, might as well stop looking.
+    if winner == player:
+      break
+
+  result = other_player(player)
+  if player in categorized_moves:
+    # prefer to win
+    result = player
+  elif 'd' in categorized_moves:
+    # draws if need be
+    result = 'd'
+
+  row_n, col_n = categorized_moves[result]
+  update(board, row_n, col_n, player)
+
+  return result
+
 def play_move(board):
   verify_plausibly_my_turn(board)
   if not make_book_move(board):
-    make_random_move(board)
+    search_and_move(board)
 
 def run_game(query_string):
   response_line = "200 OK"
