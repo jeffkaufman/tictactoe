@@ -57,10 +57,49 @@ def legal_moves(board):
         moves.append((row_n, col_n))
   return moves
 
+def update(board, row_n, col_n):
+  assert board[row_n][col_n] == ' '
+  board[row_n][col_n] = 'o'
+
+def make_random_move(board):
+  row_n, col_n = random.choice(legal_moves(board))
+  update(board, row_n, col_n)
+
+def make_book_move(board):
+  # Strategy from https://www.quora.com/Is-there-a-way-to-never-lose-at-Tic-Tac-Toe
+  book = {
+    # They're letting us go first: play in the center.
+    "         ": (1,1),
+
+    # They took their first move in a corner: play in the center.
+    "x        ": (1,1),
+    "  x      ": (1,1),
+    "      x  ": (1,1),
+    "        x": (1,1),
+
+    # They took their first move in the center: play in a corner.
+    "    x    ": (0,0),
+
+    # They took their first move on an edge: play in an adjacent corner.
+    " x       ": (0,0),
+    "   x     ": (0,0),
+    "     x   ": (2,2),
+    "       x ": (2,2),
+  }
+
+  serialized_board = serialize_board(board)
+
+  if serialized_board in book:
+    row_n, col_n = book[serialized_board]
+    update(board, row_n, col_n)
+    return True
+
+  return False
+
 def play_move(board):
   verify_plausibly_my_turn(board)
-  row_n, col_n = random.choice(legal_moves(board))
-  board[row_n][col_n] = 'o'
+  if not make_book_move(board):
+    make_random_move(board)
 
 def run_game(query_string):
   response_line = "200 OK"
@@ -90,7 +129,6 @@ def application(environ, start_response):
 def print_board(board_string):
   board = parse_board(board_string)
   print "\n-+-+-\n".join("|".join(row) for row in board)
-
 
 # for debugging
 if __name__ == "__main__":
