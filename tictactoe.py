@@ -1,4 +1,5 @@
 import sys
+import random
 
 class TictactoeException(Exception):
   def __init__(self, message):
@@ -15,14 +16,51 @@ def parse_board(board_string):
   for i, c in enumerate(board_string):
     if c not in "xo ":
       raise TictactoeException("invalid character '%s' at position %s" % (c, i))
-    col = i % 3
-    row = i / 3
-    board[row][col] = c
+    col_n = i % 3
+    row_n = i / 3
+    board[row_n][col_n] = c
 
   return board
 
 def serialize_board(board):
   return "".join("".join(row) for row in board)
+
+def verify_plausibly_my_turn(board):
+  # Throws a TictactoeException if it's not plausbly our turn.
+  #
+  # Either player can go first, so we should play if either:
+  # 1) There is one fewer o than x (they went first)
+  # 2) There are the same number of os and xs (we went first)
+  #
+  # If the board is full, then it also can't be our turn.
+  total_xs = 0
+  total_os = 0
+  for c in serialize_board(board):
+    if c == "x":
+      total_xs += 1
+    elif c == "o":
+      total_os += 1
+  if total_xs + total_os == 9:
+    raise TictactoeException("the board is full")
+  if total_xs > total_os + 1:
+    raise TictactoeException("you've taken too many turns")
+  if total_xs == total_os - 1:
+    raise TictactoeException("it's actually your turn")
+  if total_xs < total_os - 1:
+    raise TictactoeException("you're claiming I took too many turns")
+
+def legal_moves(board):
+  moves = []
+  for row_n, row in enumerate(board):
+    for col_n, val in enumerate(row):
+      if val == ' ':
+        moves.append((row_n, col_n))
+  return moves
+
+def play_move(board):
+  verify_plausibly_my_turn(board)
+  row_n, col_n = random.choice(legal_moves(board))
+  board[row_n][col_n] = 'o'
 
 def run_game(query_string):
   response_line = "200 OK"
@@ -30,6 +68,7 @@ def run_game(query_string):
   if not query_string.startswith("board="):
     raise TictactoeException("expected a parameter, board")
   board = parse_board(query_string.replace("board=", "", 1))
+  play_move(board)
 
   output = serialize_board(board)
 
@@ -55,7 +94,9 @@ def print_board(board_string):
 
 # for debugging
 if __name__ == "__main__":
-  response_line, board_string = run_game(sys.argv[1])
+  response_line, board_string = run_game("board=%s" % sys.argv[1])
   print response_line
   print
   print_board(board_string)
+  print
+  print "python tictactoe.py %s" % board_string.replace(" ", "+")
